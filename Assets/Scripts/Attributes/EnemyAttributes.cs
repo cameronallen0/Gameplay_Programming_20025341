@@ -47,7 +47,7 @@ public class EnemyAttributes : CharacterAttributes
     {
         slime = Instantiate(slime);
         slime.GetComponent<EnemyAttributes>().slimeSize = slimeSizes.Mid;
-        slime.GetComponent<EnemyAttributes>().maxHealth = 15;
+        slime.GetComponent<EnemyAttributes>().maxHealth = 20;
         slime.GetComponent<EnemyAttributes>().damage = 2;
         slime.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
     }
@@ -55,7 +55,7 @@ public class EnemyAttributes : CharacterAttributes
     {
         slime = Instantiate(slime);
         slime.GetComponent<EnemyAttributes>().slimeSize = slimeSizes.Small;
-        slime.GetComponent<EnemyAttributes>().maxHealth = 7;
+        slime.GetComponent<EnemyAttributes>().maxHealth = 10;
         slime.GetComponent<EnemyAttributes>().damage = 1;
         slime.transform.localScale = new Vector3(0.25f, 0.25f, 0.25f);
     }

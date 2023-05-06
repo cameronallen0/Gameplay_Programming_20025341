@@ -4,24 +4,18 @@ using UnityEngine;
 
 public class PlayerAttributes : CharacterAttributes
 {
-    //private PlayerHUD hud;
+    public HealthBar healthBar;
     private int damage;
 
     private void Start()
     {
-        GetReferences();
         InitVariables();
-    }
-
-    private void GetReferences()
-    {
-        //hud = GetComponent<PlayerHUD>();
     }
 
     public override void CheckHealth()
     {
         base.CheckHealth();
-        //hud.UpdateHealth(health, maxHealth);
+        healthBar.SetHealth(health);
     }
 
     public void DoDamage(CharacterAttributes doDamage)
