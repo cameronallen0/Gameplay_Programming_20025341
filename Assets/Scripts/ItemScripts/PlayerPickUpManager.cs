@@ -5,7 +5,6 @@ using UnityEngine;
 public class PlayerPickUpManager : MonoBehaviour
 {
     private bool speedPickUpActive = false;
-    private bool doublePickUpActive = false;
     public TrailRenderer trail;
 
     void OnTriggerEnter(Collider col)
@@ -27,17 +26,7 @@ public class PlayerPickUpManager : MonoBehaviour
                         trail.enabled = true;
                         speedPickUpActive = true;
                     }
-                }
-                if(pickupHit.type == "double")
-                {
-                    Debug.Log("Double Jump");
-                    PlayerController playerController;
-                    if(TryGetComponent<PlayerController>(out playerController))
-                    {
-                        playerController.canDoubleJump = true;
-                        doublePickUpActive = true;
-                    }
-                }
+                }  
                 StartCoroutine(Timer(pickupHit.durationSeconds, pickup));
             }
         }
@@ -59,17 +48,7 @@ public class PlayerPickUpManager : MonoBehaviour
                 playerController.runSpeed = playerController.runSpeed / 1.5f;
                 trail.enabled = false;
             }
-        }
-        if(doublePickUpActive)
-        {
-            doublePickUpActive = false;
-            PlayerController playerController;
-            if(TryGetComponent<PlayerController>(out playerController))
-            {
-                playerController.canDoubleJump = false;
-            }
-        }
-
+        }    
         go.SetActive(true);
 
     }
