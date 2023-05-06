@@ -6,8 +6,6 @@ public class CameraManager : MonoBehaviour
 {
     public static CameraManager instance;
     public ButtonController buttons;
-    public PlayerCamera pCam;
-
 
     public Camera playerCamera;
     public Camera doorCamera;

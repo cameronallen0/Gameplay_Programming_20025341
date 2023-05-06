@@ -6,16 +6,10 @@ using UnityEngine.AI;
 public class EnemyAI : MonoBehaviour
 {
     public NavMeshAgent agent;
-
     public Transform player;
-
     public LayerMask whatIsGround, whatIsPlayer;
-
-    public float health;
-
     public static EnemyAI instance;
-
-    public PlayerController pCon;
+    private EnemyAttributes stats;
 
     //ai patrol
     public Vector3 walkPoint;
@@ -36,8 +30,9 @@ public class EnemyAI : MonoBehaviour
 
         player = GameObject.Find("Player").transform;
         agent = GetComponent<NavMeshAgent>();
+        stats = GetComponent<EnemyAttributes>();
     }
-    private void Update()
+    void Update()
     {
         playerInSightRange = Physics.CheckSphere(transform.position, sightRange, whatIsPlayer);
         playerInAttackRange = Physics.CheckSphere(transform.position, attackRange, whatIsPlayer);
@@ -52,7 +47,8 @@ public class EnemyAI : MonoBehaviour
         }
         if (playerInSightRange && playerInAttackRange)
         {
-            AttackPlayer();
+            CharacterAttributes playerStats = player.GetComponent<CharacterAttributes>();
+            AttackPlayer(playerStats);
         }
     }
     private void Patrol()
@@ -89,7 +85,7 @@ public class EnemyAI : MonoBehaviour
     {
         agent.SetDestination(player.position);
     }
-    private void AttackPlayer()
+    private void AttackPlayer(CharacterAttributes statsToDamage)
     {
         agent.SetDestination(transform.position);
 
@@ -97,7 +93,7 @@ public class EnemyAI : MonoBehaviour
 
         if (!alreadyAttacked)
         {
-            Debug.Log("Attack from AI");
+            stats.DoDamage(statsToDamage);
 
             alreadyAttacked = true;
             Invoke(nameof(ResetAttack), timeBetweenAttacks);
@@ -106,15 +102,6 @@ public class EnemyAI : MonoBehaviour
     private void ResetAttack()
     {
         alreadyAttacked = false;
-    }
-    private void TakeDamage(int damage)
-    {
-        health -= damage;
-
-        if (health <= 0)
-        {
-            Invoke(nameof(DestroyEnemy), 0.5f);
-        }
     }
     private void DestroyEnemy()
     {

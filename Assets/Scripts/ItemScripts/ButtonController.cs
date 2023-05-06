@@ -9,11 +9,13 @@ public class ButtonController : MonoBehaviour
     public CameraManager cam;
     public PlayerController player;
     public DoorController door;
+    public DoorCamera doorCam;
 
     public GameObject button;
-    Animator buttonAnimator;
+    Animator wallbuttonAnimator;
 
     public bool canPress;
+    public bool cameraMove = false;
     private bool timerGoing = false;
     private bool buttonHit = false;
     private bool doorOpen = false;
@@ -22,14 +24,14 @@ public class ButtonController : MonoBehaviour
     {
         instance = this;
 
-        buttonAnimator = button.GetComponentInChildren<Animator>();
+        wallbuttonAnimator = button.GetComponent<Animator>();
     }
+
     private void OnTriggerEnter(Collider other)
     {
         if(!doorOpen)
         {
             canPress = true;
-            Debug.Log("Can Press");
         } 
     }
     private void OnTriggerExit(Collider other)
@@ -37,18 +39,16 @@ public class ButtonController : MonoBehaviour
         if(!doorOpen)
         {
             canPress = false;
-            Debug.Log("Can't Press");
         }
     }
-    public void ButtonAnim()
+    public void WallButtonAnim()
     {
         if(!doorOpen)
         {
             StartCoroutine(Timer());
-            buttonAnimator.SetTrigger("Button");
+            wallbuttonAnimator.SetTrigger("WallButton");
             cam.ShowDoorCamera();
             player.OnDisable();
-            Debug.Log("BUTTON");
         }
     }
     public void MoveDoor()
@@ -56,7 +56,6 @@ public class ButtonController : MonoBehaviour
         if(buttonHit)
         {
             door.DoorAnim();
-            Debug.Log("DOOR");
             doorOpen = true;
         }
     }
@@ -65,11 +64,13 @@ public class ButtonController : MonoBehaviour
         timerGoing = true;
         buttonHit = true;
 
-        yield return new WaitForSeconds(2.5f);
+        yield return new WaitForSeconds(1.5f);
 
+        cameraMove = true;
+        
         MoveDoor();
-
-        yield return new WaitForSeconds(3.5f);
+    
+        yield return new WaitForSeconds(4f);
 
         timerGoing = false;
 

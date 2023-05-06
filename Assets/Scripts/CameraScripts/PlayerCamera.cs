@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -7,66 +5,72 @@ public class PlayerCamera : MonoBehaviour
 {
     public static PlayerCamera instance;
     public CameraManager cameraManager;
-    public PlayerController player;
 
-    public Transform target;
+    public float sensitivity = 1.0f;
     public float distance = 5.0f;
-    public float height = 3.0f;
-    public float smoothSpeed = 1f;
-    public float rotationSpeed = 1.5f;
+    public float height = 2.0f;
+    public float minDistance = 1.0f;
+    public float maxDistance = 10.0f;
+    public float minHeight = 0.5f;
+    public float maxHeight = 5.0f;
+    public float smoothSpeed = 10.0f;
 
-    private Vector3 offset;
-    private float currentRotationX;
-    private float currentRotationY;
-
-    private InputAction rotateCameraActionX;
-    private InputAction rotateCameraActionY;
+    private Transform target;
+    private Vector2 rotation = Vector2.zero;
+    private float currentDistance = 0.0f;
+    private float currentHeight = 0.0f;
 
     private void Awake()
     {
         instance = this;
     }
 
-    private void Start()
+    void Start()
     {
-        offset = transform.position - target.position;
-        currentRotationX = 0.0f;
-        currentRotationY = 0.0f;
-
-        rotateCameraActionX = new InputAction("RotateCameraX", InputActionType.Value, "<Mouse>/delta/x");
-        rotateCameraActionX.Enable();
-
-        rotateCameraActionY = new InputAction("RotateCameraY", InputActionType.Value, "<Mouse>/delta/y");
-        rotateCameraActionY.Enable();
-
+        target = GameObject.FindGameObjectWithTag("Camera").transform;
+        currentDistance = distance;
+        currentHeight = height;
         Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
     }
 
-    private void FixedUpdate()
+    void LateUpdate()
     {
-        float horizontal = rotateCameraActionX.ReadValue<float>();
-        currentRotationX += horizontal * rotationSpeed;
+        // Get input from the mouse or controller
+        Vector2 input = Vector2.zero;
+        Gamepad gamepad = Gamepad.current;
 
-        float vertical = rotateCameraActionY.ReadValue<float>();
-        currentRotationY += vertical * rotationSpeed;
+        if (gamepad != null && gamepad.rightStick.IsActuated())
+        {
+            input = gamepad.rightStick.ReadValue();
+        }
+        else
+        {
+            input = Mouse.current.delta.ReadValue() * sensitivity;
+        }
 
-        Vector3 desiredPosition = target.position + offset;
-        desiredPosition += Quaternion.Euler(currentRotationY, currentRotationX, 0) * Vector3.back * distance;
-        desiredPosition += Vector3.up * height;
+        input *= sensitivity;
+        input.y *= -1;
 
-        Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
+        // Update the rotation
+        rotation += input;
+        rotation.y = Mathf.Clamp(rotation.y, -80.0f, 80.0f);
 
-        transform.position = smoothedPosition;
+        // Calculate the new position of the camera
+        Vector3 position = target.TransformPoint(new Vector3(0, currentHeight, -currentDistance));
+        Quaternion rotationQuaternion = Quaternion.Euler(rotation.y, rotation.x, 0.0f);
+        position = target.position + rotationQuaternion * new Vector3(0.0f, height, -distance);
 
-        transform.LookAt(target);
-    }
-    void OnDestroy()
-    {
-        rotateCameraActionX.Disable();
-        rotateCameraActionX.Dispose();
+        // Check if the camera is colliding with anything
+        RaycastHit hit;
+        if (Physics.Linecast(target.position, position, out hit))
+        {
+            currentDistance = Mathf.Clamp(hit.distance, minDistance, maxDistance);
+            currentHeight = Mathf.Clamp(hit.point.y - target.position.y, minHeight, maxHeight);
+            position = target.position + rotationQuaternion * new Vector3(0.0f, currentHeight, -currentDistance);
+        }
 
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        // Update the position and rotation of the camera
+        transform.position = Vector3.Lerp(transform.position, position, Time.deltaTime * smoothSpeed);
+        transform.rotation = Quaternion.Lerp(transform.rotation, rotationQuaternion, Time.deltaTime * smoothSpeed);
     }
 }

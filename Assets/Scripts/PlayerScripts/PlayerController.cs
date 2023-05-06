@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -5,58 +6,74 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    PlayerControls controls;
-    Animator animator;
-    CharacterController charController;
-
     public static PlayerController instance;
     public ButtonController buttons;
     public PlayerCamera pCam;
-    public EnemyAI enemy;
-    public AttributeManager playerAtm;
-    public AttributeManager enemyAtm;
+    //public AttributeManager playerAtm;
+    public GameObject playerCamera;
+    public Transform respawnPoint;
 
-    //moving variables
-    public Vector2 move;
-    public float speed;
-    public float walkSpeed = 7.5f;
-    public float runSpeed = 15f;
+    PlayerControls controls;
+    CharacterController charController;
+    Animator animator;
+    PlayerAttributes stats;
 
-    //jumping variables
-    private Vector3 playerVelocity;
-    private float jumpHeight = 5.0f;
-    private float gravity = -9.81f;
+    public float playerSpeed;
+    public float walkSpeed = 5f;
+    public float runSpeed = 10f;
+    [SerializeField] private float jumpHeight = 5f;
+    [SerializeField] private float gravity = -9.81f;
 
-    //other variables
-    private bool isRunning;
-    private bool groundedPlayer;
+    public bool attacking;
+    public bool canAttack = false;
+    public bool isAttacking;
+    private float lastAttack = 0;
+
+    [SerializeField]
+    private float turnSmoothTime = 0.1f;
+    private float turnSmoothVelocity;
+
+    private bool isGrounded;
+    [SerializeField] private float groundCheckDistance = 0.4f;
+    [SerializeField] private LayerMask groundMask;
     private bool isJumping;
-    private bool isFalling;
-    public bool isPress;
 
+    Vector2 move;
+    Vector3 playerVelocity;
+    bool runPressed;
+    bool jumpPressed;
+    bool buttonPressed;
+    public bool canDoubleJump;
+
+
+    public float GetSpeed()
+    {
+        return playerSpeed;
+    }
+    public void SetSpeed(float speed)
+    {
+        playerSpeed = speed;
+    }
+
+    private void Start()
+    {
+        animator = GetComponentInChildren<Animator>();
+        charController = GetComponent<CharacterController>();
+        stats = GetComponent<PlayerAttributes>();
+    }
     void Awake()
     {
-        instance = this;
-
         controls = new PlayerControls();
-        charController = GetComponent<CharacterController>();
-        animator = gameObject.GetComponentInChildren<Animator>();
-
         controls.Player.Move.performed += ctx => move = ctx.ReadValue<Vector2>();
         controls.Player.Move.canceled += ctx => move = Vector2.zero;
-
-        controls.Player.Run.performed += ctx => isRunning = ctx.ReadValueAsButton();
-        controls.Player.Run.canceled += ctx => isRunning = false;
-
-        controls.Player.Jump.performed += ctx => isJumping = ctx.ReadValueAsButton();
-        controls.Player.Jump.canceled += ctx => isJumping = false;
-
-        controls.Player.Interact.performed += ctx => isPress = ctx.ReadValueAsButton();
-        controls.Player.Interact.canceled += ctx => isPress = false;
-
-        //controls.Player.Attack.performed += ctx => isAttack = ctx.ReadValueAsButton();
-        //controls.Player.Attack.canceled += ctx => isAttack = false;
+        controls.Player.Run.performed += ctx => runPressed = ctx.ReadValueAsButton();
+        controls.Player.Run.canceled += ctx => runPressed = false;
+        controls.Player.Jump.performed += ctx => jumpPressed = ctx.ReadValueAsButton();
+        controls.Player.Jump.canceled += ctx => jumpPressed = false;
+        controls.Player.Interact.performed += ctx => buttonPressed = ctx.ReadValueAsButton();
+        controls.Player.Interact.canceled += ctx => buttonPressed = false;
     }
+
     public void OnEnable()
     {
         controls.Player.Enable();
@@ -65,85 +82,147 @@ public class PlayerController : MonoBehaviour
     {
         controls.Player.Disable();
     }
-
-    public void FixedUpdate()
+    public void OnAttack()
     {
-        groundedPlayer = charController.isGrounded;
+        animator.SetTrigger("Attacking");
+        attacking = true;
+    }
+    void FixedUpdate()
+    {
+        isGrounded = Physics.CheckSphere(transform.position, groundCheckDistance, groundMask);
 
-        Vector3 movement = new Vector3(move.x, 0.0f, move.y);
-        charController.Move(movement * speed * Time.deltaTime);
-
-        transform.Translate(movement, Space.World);
-
-        if(movement != Vector3.zero)
+        if (isGrounded && playerVelocity.y < 0)
         {
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(movement), 0.15f);
+            playerVelocity.y = -2f;
         }
 
-        if (move != Vector2.zero && !isRunning)
+        if (isGrounded)
         {
-            Walk();
-            Jump();
+            animator.SetBool("isGrounded", true);
+            isGrounded = true;
+            animator.SetBool("isJumping", false);
+            isJumping = false;
+            animator.SetBool("isFalling", false);
         }
-        else if (move != Vector2.zero && isRunning)
+        else
         {
-            Run();
-            Jump();
+            animator.SetBool("isGrounded", false);
+            isGrounded = false;
         }
-        else if (move == Vector2.zero)
+
+        if ((isJumping && playerVelocity.y < 0) || playerVelocity.y < -2)
         {
-            Idle();
-            Jump();
+            animator.SetBool("isFalling", true);
         }
-        if(isPress)
+
+        Vector3 movement = new Vector3(move.x, 0.0f, move.y).normalized;
+        movement = playerCamera.transform.forward * movement.z + playerCamera.transform.right * movement.x;
+        movement.y = 0f;
+        movement = movement.normalized;
+
+        if (movement.magnitude >= 0.1f)
         {
-            if(buttons.canPress)
+            float targetAngle = Mathf.Atan2(movement.x, movement.z) * Mathf.Rad2Deg;
+            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+            transform.rotation = Quaternion.Euler(0f, angle, 0f);
+            charController.Move(movement * playerSpeed * Time.deltaTime);
+        }
+        if(stats.health == 0)
+        {
+            transform.position = respawnPoint.position;
+            stats.health = stats.maxHealth;
+        }
+
+        if (isGrounded)
+        {
+            if (move != Vector2.zero && !runPressed && playerSpeed != 16)
             {
-                buttons.ButtonAnim();
+                Walk();
+            }
+            else if (move != Vector2.zero && runPressed && playerSpeed != 16)
+            {
+                Run();
+            }
+            else if (move != Vector2.zero && playerSpeed == 16)
+            {
+                animator.SetFloat("Speed", 1f, 0.1f, Time.deltaTime);
+            }
+            else if (move == Vector2.zero)
+            {
+                Idle();
+            }
+            move *= playerSpeed;
+            if (jumpPressed)
+            {
+                Jump();
+            }
+            if(attacking && !runPressed && canAttack)
+            {
+                if(!isAttacking)
+                {
+                    isAttacking = true;
+                }
+            }
+            if(buttonPressed)
+            {
+                if(buttons.canPress)
+                {
+                    buttons.WallButtonAnim();
+                }
+            }
+
+        }
+        playerVelocity.y += gravity * Time.deltaTime;
+        charController.Move(playerVelocity * Time.deltaTime);
+        attacking = false;
+    }
+    private void Idle()
+    {
+        animator.SetFloat("Speed", 0f, 0.1f, Time.deltaTime);
+        playerSpeed = 0;
+    }
+    private void Walk()
+    {
+        playerSpeed = walkSpeed;
+        animator.SetFloat("Speed", 0.5f, 0.1f, Time.deltaTime);
+    }
+    private void Run()
+    {
+        playerSpeed = runSpeed;
+        animator.SetFloat("Speed", 1f, 0.1f, Time.deltaTime);
+    }
+    private void OnTriggerStay(Collider other)
+    {
+        if(other.tag == "Enemy")
+        {
+            canAttack = true;
+            if(isAttacking)
+            {
+                if(Time.time >= lastAttack + stats.attackSpeed)
+                {
+                    lastAttack = Time.time;
+                    CharacterAttributes enemyStats = other.GetComponent<CharacterAttributes>();
+                    isAttacking = false;
+                    Attack(enemyStats);
+                }
             }
         }
     }
-    void Jump()
-    { 
-
-        if (groundedPlayer)
-        {
-            playerVelocity.y = 0.0f;
-            animator.SetBool("groundedPlayer", true);
-            groundedPlayer = true;
-            animator.SetBool("isJumping", false);
-            animator.SetBool("isFalling", false);
-        }
-        
-        if (groundedPlayer && isJumping)
-        {
-            playerVelocity.y += Mathf.Sqrt(jumpHeight * -1.0f * gravity);
-            animator.SetBool("isJumping", true);
-            isJumping = true;
-        }
-
-        if((isJumping && playerVelocity.y < 0) || playerVelocity.y < -2)
-        {
-            animator.SetBool("isFalling", true);
-            animator.SetBool("isJumping", false);
-        }
-
-        playerVelocity.y += gravity * Time.deltaTime;
-        charController.Move(playerVelocity * Time.deltaTime);
-    }
-    void Idle()
+    private void OnTriggerEnter(Collider other)
     {
-        speed = 0f;
-        animator.SetFloat("Speed", 0f, 0.1f, Time.deltaTime);
+        if(other.tag == "DeathBarrier")
+        {
+            stats.health = 0;
+        }
     }
-    void Walk()
+    private void Attack(CharacterAttributes statsToDamage)
     {
-        speed = walkSpeed;
-        animator.SetFloat("Speed", 0.5f, 0.1f, Time.deltaTime);
+        stats.DoDamage(statsToDamage);
     }
-    void Run()
+    private void Jump()
     {
-        speed = runSpeed;
-        animator.SetFloat("Speed", 1f, 0.1f, Time.deltaTime);
+        playerVelocity.y = Mathf.Sqrt(jumpHeight * -2 * gravity);
+        animator.SetBool("isJumping", true);
+        isJumping = true;
     }
 }
